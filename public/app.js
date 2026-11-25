@@ -5,7 +5,7 @@
   const LOCAL_PROGRESS_KEY = 'word-step-local-progress-v1';
   const app = document.getElementById('app');
   const uiTranslations = { "TODAY'S STUDY": '今日の学習', "TODAY'S TEST": '今日のテスト', 'TEST RESULT': 'テスト結果' };
-  const localizeUi = () => { const walker = document.createTreeWalker(app, NodeFilter.SHOW_TEXT); const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode); nodes.forEach((node) => { Object.entries(uiTranslations).forEach(([from, to]) => { node.nodeValue = node.nodeValue.replaceAll(from, to); }); }); };
+  const localizeUi = () => { const walker = document.createTreeWalker(app, NodeFilter.SHOW_TEXT); const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode); nodes.forEach((node) => { Object.entries(uiTranslations).forEach(([from, to]) => { const next = node.nodeValue.replaceAll(from, to); if (next !== node.nodeValue) node.nodeValue = next; }); }); };
   new MutationObserver(localizeUi).observe(app, { childList: true, subtree: true, characterData: true });
   const today = new Date();
   const pad = (value) => String(value).padStart(2, '0');
