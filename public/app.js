@@ -13,7 +13,7 @@
   const monthKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
   const labels = ['日', '月', '火', '水', '木', '金', '土'];
   const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-  const IDENTITIES = [{ id: 'dad', name: '爸爸', avatar: '👨🏻', color: 'blue' }, { id: 'mom', name: '妈妈', avatar: '👩🏻', color: 'coral' }, { id: 'uu', name: 'UU', avatar: '🧒🏻', color: 'gold' }];
+  const IDENTITIES = [{ id: 'dad', name: 'パパ', avatar: '👨🏻', color: 'blue' }, { id: 'mom', name: 'ママ', avatar: '👩🏻', color: 'coral' }, { id: 'uu', name: 'UU', avatar: '🧒🏻', color: 'gold' }];
   let progress = { studyDates: [], testDates: [] };
   let progressSyncAvailable = true;
   let studyWords = [];
