@@ -40,10 +40,12 @@ const requiredColumns = {
   test_results: ['identity', 'study_date', 'total_questions', 'correct_answers', 'completed_at']
 };
 let schemaNeedsBaseline = false;
+const legacyTables = {};
 for (const [table, required] of Object.entries(requiredColumns)) {
   const columns = await tableColumns(table);
   if (columns.size > 0 && required.some((column) => !columns.has(column))) {
     const legacyName = await preserveLegacyTable(table);
+    legacyTables[table] = legacyName;
     console.log(`Preserved legacy ${table} table as ${legacyName}`);
     schemaNeedsBaseline = true;
   }
@@ -60,5 +62,34 @@ for (const filename of files) {
     ...statements(sql),
     { sql: `INSERT INTO ${migrationTable} (filename, applied_at) VALUES (?, ?)`, args: [filename, new Date().toISOString()] }
   ], 'write');
+}
+
+const legacyTestResults = legacyTables.test_results;
+if (legacyTestResults) {
+  // The old authenticated app stored results by user account. Map the family
+  // names used there to the identity keys used by the current app.
+  await client.execute(`
+    INSERT OR IGNORE INTO test_results
+      (identity, study_date, total_questions, correct_answers, completed_at)
+    SELECT CASE lower(trim(COALESCE(users.name, legacy.user_id)))
+      WHEN '爸爸' THEN 'dad'
+      WHEN 'dad' THEN 'dad'
+      WHEN 'father' THEN 'dad'
+      WHEN '妈妈' THEN 'mom'
+      WHEN 'mom' THEN 'mom'
+      WHEN 'mother' THEN 'mom'
+      WHEN 'uu' THEN 'uu'
+      ELSE lower(trim(COALESCE(users.name, legacy.user_id)))
+    END,
+      legacy.test_date,
+      legacy.total,
+      legacy.score,
+      COALESCE(legacy.created_at, CURRENT_TIMESTAMP)
+    FROM "${legacyTestResults}" AS legacy
+    LEFT JOIN users ON users.id = legacy.user_id
+    WHERE lower(trim(COALESCE(users.name, legacy.user_id))) IN
+      ('爸爸', 'dad', 'father', '妈妈', 'mom', 'mother', 'uu')
+  `);
+  console.log(`Migrated legacy test results from ${legacyTestResults}`);
 }
 await client.close();
