@@ -3,7 +3,6 @@
   const AUTH_KEY = 'word-step-identity-v1';
   const MONTH_KEY = 'word-step-calendar-month-v1';
   const LOCAL_PROGRESS_KEY = 'word-step-local-progress-v1';
-  const CREATOR_IDENTITY = 'dad';
   const app = document.getElementById('app');
   const uiTranslations = { "TODAY'S STUDY": '今日の学習', "TODAY'S TEST": '今日のテスト', 'TEST RESULT': 'テスト結果' };
   const localizeUi = () => { const walker = document.createTreeWalker(app, NodeFilter.SHOW_TEXT); const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode); nodes.forEach((node) => { Object.entries(uiTranslations).forEach(([from, to]) => { const next = node.nodeValue.replaceAll(from, to); if (next !== node.nodeValue) node.nodeValue = next; }); }); };
@@ -41,40 +40,6 @@
   function apiError(message, error) { console.error(message, error); return new Error(message); }
   async function api(path, options = {}) { try { const response = await fetch(path, { headers: { Accept: 'application/json' }, ...options }); if (!response.ok) throw apiError(`API ${response.status}`, response.statusText); return await response.json(); } catch (error) { throw apiError('サーバーと通信できませんでした。時間をおいてもう一度お試しください。', error); } }
   function jsonBody(body) { return { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) }; }
-  async function downloadBackup(identity) {
-    const button = document.getElementById('backup-button');
-    const message = document.getElementById('backup-message');
-    if (!button || !message) return;
-    button.disabled = true;
-    button.textContent = 'バックアップを準備中…';
-    message.textContent = '';
-    try {
-      const response = await fetch(`/api/backup?identity=${encodeURIComponent(identity.id)}`, { headers: { Accept: 'text/csv, application/json' } });
-      const contentType = response.headers.get('content-type') || '';
-      if (!response.ok) throw new Error('バックアップを作成できませんでした。');
-      if (contentType.includes('application/json')) {
-        const result = await response.json();
-        message.textContent = result.message || '保存済みの単語がありません。';
-        return;
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `word-step-${identity.id}-backup-${dateKey(today)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      message.textContent = 'バックアップをダウンロードしました。';
-    } catch (error) {
-      console.error('単語バックアップをダウンロードできませんでした。', error);
-      message.textContent = 'バックアップをダウンロードできませんでした。時間をおいてもう一度お試しください。';
-    } finally {
-      button.disabled = false;
-      button.textContent = 'ダウンロードする';
-    }
-  }
   function busy(message = '読み込み中です…') { app.innerHTML = `<main class="status-page"><div class="status-card"><span class="brand-mark">W</span><p>${message}</p></div></main>`; }
   function errorView(error, retry) { app.innerHTML = `<main class="status-page"><div class="status-card"><span class="status-icon">!</span><h1>読み込めませんでした</h1><p>${error.message}</p><button id="retry" class="primary-button" type="button">もう一度試す <span>→</span></button></div></main>`; document.getElementById('retry').addEventListener('click', retry); }
   function selectIdentity(identity) { localStorage.setItem(AUTH_KEY, JSON.stringify({ id: identity.id })); window.location.hash = ''; render(); }
@@ -115,7 +80,8 @@
     const selectedIsToday = selectedDate === dateKey(today); const selectedIsFuture = selectedDate > dateKey(today); const studyButtonLabel = selectedIsToday ? '今日の打刻をする' : selectedIsFuture ? `${selectedDate}の学習を始める` : `${selectedDate}の学習を見る`; const testButtonLabel = selectedIsToday ? '今日のテストへ' : `${selectedDate}のテストへ`;
     app.innerHTML = `<main class="calendar-page"><header class="site-header"><a class="brand" href="./" aria-label="ワードステップ ホームへ"><span class="brand-mark">W</span>ワードステップ</a><div class="header-actions"><span class="user-chip"><span class="avatar avatar-${identity.color}" aria-hidden="true">${identity.avatar}</span><span>${identity.name}</span></span></div></header><section class="calendar-heading"><div><p class="overline">MY CALENDAR</p><h1>学習カレンダー</h1><p class="heading-subtitle">今日の一歩を、ここから始めましょう。</p></div><button id="today-button" class="today-button" type="button">今日に戻る</button></section><section class="calendar-card" aria-label="${year}年${monthNames[month]}のカレンダー"><div class="calendar-toolbar"><h2>${year}年 <span>${monthNames[month]}</span></h2><div class="month-controls"><button id="previous-month" type="button" aria-label="前の月へ">←</button><button id="next-month" type="button" aria-label="次の月へ">→</button></div></div><div class="weekdays">${labels.map((label, index) => `<span class="${index === 0 ? 'is-sunday' : ''}">${label}</span>`).join('')}</div><div class="calendar-grid">${cells.join('')}</div><p class="calendar-legend">✓ 学習済み　テスト: アバター・正解数</p></section><section class="calendar-actions"><button id="study-button" class="primary-button" type="button">${studyButtonLabel} <span>→</span></button><button id="test-button" class="secondary-button" type="button">${testButtonLabel}</button></section><section class="backup-card" aria-labelledby="backup-title"><div><h2 id="backup-title">自分の準2級単語バックアップをダウンロード</h2><p>現在のユーザーが保存した単語を CSV でダウンロードできます。</p></div><button id="backup-button" class="secondary-button" type="button">ダウンロードする</button><p id="backup-message" class="backup-message" role="status" aria-live="polite"></p></section><p class="privacy-note">学習記録とテスト結果はクラウドに保存され、通信失敗時はこの端末にも一時保存されます。</p></main>`;
     app.innerHTML = app.innerHTML.replace('MY CALENDAR', 'わたしのカレンダー');
-    if (identity.id === CREATOR_IDENTITY) app.innerHTML = app.innerHTML.replace('<section class="backup-card"', '<section class="creator-entry" aria-labelledby="creator-words-title"><div><h2 id="creator-words-title">準2級単語を確認する</h2><p>データベースに登録されている全単語を確認できます。</p></div><button id="creator-words-button" class="secondary-button" type="button">単語一覧を見る <span>→</span></button></section><section class="backup-card"');
+    document.querySelector('.backup-card')?.remove();
+    app.innerHTML = app.innerHTML.replace('<section class="privacy-note"', '<section class="creator-entry" aria-labelledby="creator-words-title"><div><h2 id="creator-words-title">準2級単語を確認する</h2><p>データベースに登録されている全単語を確認できます。</p></div><button id="creator-words-button" class="secondary-button" type="button">単語一覧を見る <span>→</span></button></section><section class="privacy-note"');
     if (!progressSyncAvailable) {
       const notice = document.createElement('p');
       notice.className = 'sync-notice';
@@ -123,7 +89,7 @@
       notice.textContent = 'クラウド同期を一時的に利用できません。現在の端末に保存された学習記録を表示しています。';
       document.querySelector('.calendar-heading').after(notice);
     }
-    document.getElementById('previous-month').addEventListener('click', () => { setMonth(previous); calendarView(identity); }); document.getElementById('next-month').addEventListener('click', () => { setMonth(next); calendarView(identity); }); document.getElementById('today-button').addEventListener('click', () => { selectedDate = dateKey(today); setMonth(today); calendarView(identity); }); document.querySelectorAll('[data-date]').forEach((button) => button.addEventListener('click', () => { const date = button.dataset.date; selectedDate = date; if (date > dateKey(today)) goToDate('study', date); else go(`study-date=${date}`); })); document.getElementById('study-button').addEventListener('click', () => { if (selectedIsFuture) goToDate('study', selectedDate); else if (selectedIsToday) goToDate('checkin', selectedDate); else go(`study-date=${selectedDate}`); }); document.getElementById('test-button').addEventListener('click', () => goToDate('test', selectedDate)); document.getElementById('backup-button').addEventListener('click', () => downloadBackup(identity)); if (identity.id === CREATOR_IDENTITY) document.getElementById('creator-words-button').addEventListener('click', () => go('creator-words'));
+    document.getElementById('previous-month').addEventListener('click', () => { setMonth(previous); calendarView(identity); }); document.getElementById('next-month').addEventListener('click', () => { setMonth(next); calendarView(identity); }); document.getElementById('today-button').addEventListener('click', () => { selectedDate = dateKey(today); setMonth(today); calendarView(identity); }); document.querySelectorAll('[data-date]').forEach((button) => button.addEventListener('click', () => { const date = button.dataset.date; selectedDate = date; if (date > dateKey(today)) goToDate('study', date); else go(`study-date=${date}`); })); document.getElementById('study-button').addEventListener('click', () => { if (selectedIsFuture) goToDate('study', selectedDate); else if (selectedIsToday) goToDate('checkin', selectedDate); else go(`study-date=${selectedDate}`); }); document.getElementById('test-button').addEventListener('click', () => goToDate('test', selectedDate)); document.getElementById('creator-words-button').addEventListener('click', () => go('creator-words'));
   }
 
   function wordItem(item, index, test = false, detail = false) { const word = item.word || item.english; const japanese = item.japanese || item.ja || item.meaningJa || ''; const chinese = item.chinese || item.zh || item.meaningZh || item.meaning || ''; const phonetic = item.phonetic || item.ipa || ''; const example = item.example || item.exampleSentence || ''; const learned = item.learned ? '<span class="learned-label">学習済み</span>' : detail ? '<span class="unlearned-label">未完了</span>' : ''; return `<article class="word-card${detail && item.learned ? ' is-learned' : ''}"><span class="word-number">${String(index + 1).padStart(2, '0')}</span><div class="word-copy"><h3>${japanese}</h3><p class="word-chinese">${chinese}</p>${test ? '' : `<p class="phonetic">${phonetic}</p>`}${test ? `<label class="answer-label" for="answer-${index}">英単語を入力</label><input class="answer-input" id="answer-${index}" data-answer-index="${index}" autocomplete="off" autocapitalize="none" spellcheck="false">` : `<p class="english-word">${word}</p><span class="word-example">${example}</span>`}${learned}</div></article>`; }
@@ -136,7 +102,6 @@
   async function testView(identity, date) { selectedDate = date; if (studyWordsDate !== date || !studyWords.length) { busy(`${date}のテストを準備しています…`); try { studyWords = await fetchWords(identity, date); studyWordsDate = date; } catch (error) { errorView(error, () => testView(identity, date)); return; } } app.innerHTML = `<main class="content-page"><header class="site-header"><a class="brand" href="./"><span class="brand-mark">W</span>ワードステップ</a><button class="back-button" id="back-calendar" type="button">← カレンダーへ</button></header><section class="page-heading"><p class="overline">${date === dateKey(today) ? '今日のテスト' : '選択した日のテスト'}</p><h1>${date}のテスト</h1><p>日本語と中国語の意味を見て、英単語を入力してください。</p></section><form id="test-form" class="word-list study-list">${studyWords.map((item, index) => wordItem(item, index, true)).join('')}<div class="page-actions"><button class="primary-button" type="submit">答え合わせをする <span>→</span></button></div></form><p id="test-message" class="inline-message" role="status"></p></main>`; document.getElementById('back-calendar').addEventListener('click', () => go('calendar')); document.getElementById('test-form').addEventListener('submit', async (event) => { event.preventDefault(); const answers = [...document.querySelectorAll('[data-answer-index]')].map((input) => input.value.trim()); const correct = answers.reduce((total, answer, index) => total + (answer.toLowerCase() === String(studyWords[index].word || studyWords[index].english).toLowerCase() ? 1 : 0), 0); const message = document.getElementById('test-message'); try { await api('/api/test-result', jsonBody({ identity: identity.id, date, answers, correctAnswers: correct, totalQuestions: studyWords.length })); app.innerHTML = `<main class="result-page"><div class="result-card"><p class="overline">TEST RESULT</p><h1>${date}のテスト結果</h1><p class="result-score">${Math.round(correct / studyWords.length * 100)}<small>%</small></p><p>${correct} / ${studyWords.length} 問正解です。</p><div class="page-actions"><button id="result-calendar" class="primary-button" type="button">カレンダーへ <span>→</span></button><button id="result-retry" class="secondary-button" type="button">もう一度テストする</button></div></div></main>`; document.getElementById('result-calendar').addEventListener('click', () => go('calendar')); document.getElementById('result-retry').addEventListener('click', () => testView(identity, date)); } catch (error) { message.textContent = `テスト結果を保存できませんでした。${error.message}`; } }); }
   async function render() { const identity = getIdentity(); if (!identity) { loginView(); return; } const view = window.location.hash.slice(1) || 'calendar'; if (view === 'creator-words') { creatorWordsView(identity); return; } if (view === 'checkin' || view.startsWith('checkin?')) { const date = getRouteDate(view); if (!date) { go('calendar'); return; } selectedDate = date; checkinView(identity, date); return; } if (view === 'study' || view.startsWith('study?')) { const date = getRouteDate(view); if (!date) { go('calendar'); return; } selectedDate = date; studyView(identity, date); return; } if (view === 'test' || view.startsWith('test?')) { const date = getRouteDate(view); if (!date) { go('calendar'); return; } selectedDate = date; testView(identity, date); return; } if (view.startsWith('study-date=')) { const date = view.slice('study-date='.length); if (!isValidDateKey(date)) { go('calendar'); return; } selectedDate = date; if (date > dateKey(today)) { studyView(identity, date); return; } studyDetailView(identity, date); return; } busy('カレンダーを読み込んでいます…'); await loadProgress(identity); calendarView(identity); }
   async function creatorWordsView(identity) {
-    if (identity.id !== CREATOR_IDENTITY) { go('calendar'); return; }
     busy('準2級単語一覧を読み込んでいます…');
     try {
       const data = await api(`/api/creator-words?identity=${encodeURIComponent(identity.id)}`);
